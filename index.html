@@ -1,0 +1,442 @@
+<!doctype html>
+<html>
+<head>
+<!--
+ * HTML5 Game Template for Accessibility Systems and Screen Readers
+ * Version: 1.0.0
+ * Created: Thu Nov 11 2021
+ * Author:  Benjamin Ritter
+ *          britter@exceptionullgames.com
+ * Copyright (c) 2021 - Themis Games
+ * Free for personal and commercial use.
+ * Please let me know if you make something cool with it!
+-->
+<style type="text/css">
+* {
+    /*Reset anything that would throw off our layout math*/
+    margin: 0; padding: 0;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    font-size: 35px;
+}
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    /*Center the #positioningWrapper*/
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+:focus {
+    outline: solid 5px red;
+    border-radius: 3px;
+    z-index: 100000;
+}
+#positioningWrapper {
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+#gameContainer {
+    position: relative;
+    transform-origin: center;
+    width: 1080px;
+    /*The authored height of all of our enclosed elements*/
+    height: 1728px;
+    /*Half of authored sizing. Centers #gameContainer onto #positioningWrapper*/
+    left: -540px;
+    top: -864px;
+    /*Javascript sets the scaling*/
+    transform: scale(0);
+}
+#screenReaderOnly {
+    /*"Hide" the announcer element*/
+    position: fixed;
+    height: 1px;
+    width: 1px;
+    overflow: hidden;
+    opacity: 0;
+    user-select: none;
+    z-index: -1000;
+}
+.hidden {
+    /*Hides modals until we need them*/
+    display: none !important;
+}
+.modal {
+    height: 400px;
+    width: 400px;
+    border: 1px solid black;
+    z-index: 100;
+}
+
+</style>
+</head>
+<body>
+
+<div id="positioningWrapper">
+    <div id="gameContainer" role="application">
+        GAME SCENE ELEMENTS GO HERE<br>
+        Save and modify this file for your own purposes.<br>
+        Right click > Save as...
+        <div id="test1" class="test" role="text" tabindex="0" aria-label="Selection is on the line Test 1.">Test 1</div>
+        <div id="test2" class="test" role="text" tabindex="0" aria-label="Selection is on the line Test 2.">Test 2</div>
+        <div id="test3" class="test" role="text" tabindex="0" aria-label="Selection is on the line Test 3.">Test 3</div>
+        <button id="btnTestAModalWindow" role="button" tabindex="0" aria-label="Test Modal: Activate to open the test modal window.">Test Modal</button>
+        <button id="btnTestRefreshAriaLabels" role="button" tabindex="0" aria-label="Test Refresh Aria Labels: Activate to change the test div labels.">Test Refresh Aria Labels</button>
+        <button id="btnTestAnnouncement" role="button" tabindex="0" aria-label="Test Announcement: Activate to speak using the announcer div #screenReaderOnly.">Test Announcer</button>
+    </div> <!-- gameContainer -->
+</div> <!-- positioningWrapper -->
+
+<!-- Then, any modal windows outside of the scaled scene. -->
+<div id="aModalWindow" class="modal hidden" aria-hidden="true" aria-label="A modal window." role="application">
+    <div id="aModalWindowMessage" role="text" tabindex="0">Hello! I'm a modal window.</div>
+    <button id="modalAModalWindowClose" role="text"  tabindex="0" aria-label="Close the test modal window.">Close</button>
+</div> <!-- aModalWindow -->
+
+<!-- Finally, an Aria announcer. We'll talk about this soon. -->
+<div id="screenReaderOnly" aria-live="polite" role="text" tabindex="0" aria-label=""></div>
+
+<script type="text/javascript">
+let navigableElements = [];
+navigableElements.push.apply(navigableElements, Array.from(document.getElementById('gameContainer').children));
+//navigableElements.push(document.getElementById('anIndividualElement'));
+
+let modalNavigableElements = [];
+let activeModalElement = null; /*Your modal container, set whenever you open one*/
+
+function buildModalNavigationArray() {
+    modalNavigableElements = []; //reset
+    modalNavigableElements.push.apply(modalNavigableElements, Array.from(activeModalElement.children));
+    //Then, remove anything you don't want if necessary.
+}
+
+function announce(text) {
+    let screenReaderOnly = document.getElementById('screenReaderOnly');
+
+    //Reset the div. Otherwise, repeat announcements will not trigger on iOS.
+    screenReaderOnly.innerHTML = '';
+    screenReaderOnly.setAttribute('aria-label', '');
+    //10 frame timeout required to trick some screen readers into reading repeat announcements.
+    setTimeout(function() {
+        screenReaderOnly.innerHTML = text;
+        //Aria label required for some browsers.
+        screenReaderOnly.setAttribute('aria-label', text);
+    }, 160);
+}
+
+function refreshAriaLabels() {
+    for(let testDiv of document.getElementById('gameContainer').children) {
+        let newLabel = '';
+        
+        /*
+        Game logic that updates the label in different ways goes here
+        */
+        
+        if (testDiv.classList.contains('test')) {
+            newLabel = "The Aria label for " + testDiv.innerHTML + " has been updated.";
+        }
+        
+        //Only replace if different. Without this, can slow down iOS Safari.
+        if (newLabel !== testDiv.getAttribute('aria-label')) {
+            //Clear existing. Required to re-read if focus doesn't move.
+            testDiv.setAttribute('aria-label', '');
+            testDiv.setAttribute('aria-label', newLabel);
+        }
+    }
+}
+
+//Useful for navigation operations. I don't rely on document.activeElement.
+let currentlyFocusedElement;
+let currentlyFocusedElementIndex;
+let gameWrapperElement = document.getElementById('positioningWrapper');
+
+function setFocus(element) {
+    if (navigableElements.includes(element) || modalNavigableElements.includes(element)) {
+        clearFocus();
+        gameWrapperElement.setAttribute('aria-activedescendant', element.id);
+        element.focus();
+        currentlyFocusedElement = element;
+    }
+}
+
+function clearFocus() {
+    gameWrapperElement.setAttribute('aria-activedescendant', '');
+    document.activeElement.blur();
+}
+
+let isModalDisplayed = false;
+let modalPreviousFocus = null;
+
+function openModal(modalName, initialFocus = null) {
+    isModalDisplayed = true;
+    activeModalElement = document.getElementById(modalName);
+    buildModalNavigationArray();
+    var modal = document.getElementById(modalName);
+    if (modal.classList.contains('hidden')) { 
+        modal.classList.remove('hidden'); 
+        modal.setAttribute('aria-hidden', 'false');
+    }
+    //Hide the game scene from the navigation tree
+    document.getElementById('positioningWrapper').setAttribute('aria-hidden', 'true');
+    if (initialFocus != null) {
+        //Choose an element to receive focus upon opening modal
+        //Use a timeout to let iOS Safari catch up to all of this DOM manipulation.
+        setTimeout(function() {
+            setFocus(document.getElementById(initialFocus), false);
+        }, 1);
+    }
+}
+
+function closeModal(modalName, returnFocus = true)
+{
+    var modal = document.getElementById(modalName);
+    if (!modal.classList.contains('hidden')) {
+        isModalDisplayed = false;
+        activeModalElement = null;
+        //Unhide the game scene from the navigation tree
+        document.getElementById('positioningWrapper').setAttribute('aria-hidden', 'false');
+        if (returnFocus) {
+            //Choose an element to receive focus upon closing modal
+            setFocus(modalPreviousFocus, false);
+        }
+        //Use a timeout to let iOS Safari catch up to all of this DOM manipulation.
+        setTimeout(function() {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+        }, 1);
+    }
+}
+
+//Touch
+document.addEventListener("touchstart", touchStart, {"passive": false});
+document.addEventListener("touchend", touchEnd);
+//Mouse
+document.addEventListener("mousedown", mouseDown);
+document.addEventListener("mouseup", mouseUp);
+//Keyboard
+document.addEventListener("keydown", keyDown);
+document.addEventListener("keyup", keyUp);
+//iOS VoiceOver focus
+document.addEventListener("focusin", hoverIn);
+
+function filterElementChildren(element) {
+    //Nested elements can take priority if they're in the way.
+    //Assuming you can't hide them, you can filter them out here.
+    if (element.classList.contains('somethingUnwanted')) { /*The ID or classlist contains a known decorative child element*/
+        return element.parentElement;
+    }
+    return element;
+}
+
+let inputTarget = null;
+let touchEventDownHandled = false;
+let touchEventUpHandled = false;
+
+function touchStart(event) {
+    event.preventDefault(); 
+    if(!event.cancelable) { return; }
+    inputTarget = filterElementChildren(event.target);
+    touchEventDownHandled = true;
+}
+
+function mouseDown(event) {
+    event.preventDefault();
+    //By specification, all browsers fire touch before mouse. Return early to prevent double processing.
+    if (touchEventDownHandled == true) {touchEventDownHandled = false; return;}
+    inputTarget = filterElementChildren(event.target);
+}
+
+function touchEnd(event) {
+    let newInputTarget = filterElementChildren(document.elementFromPoint(event.changedTouches[0].clientX, event.changedTouches[0].clientY));
+    if (inputTarget == newInputTarget) {
+        processInput(newInputTarget);
+    }
+    inputTarget = null;
+    touchEventUpHandled = true;
+}
+
+function mouseUp(event) {
+    event.preventDefault();
+    if (touchEventUpHandled == true) {touchEventUpHandled = false; return;}
+    let newInputTarget = filterElementChildren(event.target);
+    if (inputTarget == newInputTarget) {
+        processInput(newInputTarget);
+    }
+    inputTarget = null;
+}
+
+//Keep track of keyboard state, within reason. Accessibility features can trigger focusIn without firing input events, causing double keyboard navigation intent.
+let heldKeyboardKeys = [];
+//arrow left, up, right, down, tab, space, enter, esc, backspace
+const keysWeCareAbout = [37,38,39,40,9,32,13,27,8];
+
+function keyDown(event) {
+    if (keysWeCareAbout.includes(event.keyCode)) {
+        event.preventDefault();
+    }
+    if (keysWeCareAbout.includes(event.keyCode) && !heldKeyboardKeys.includes(event.keyCode)) {
+        heldKeyboardKeys.push(event.keyCode);
+    }
+    const modifiers = [event.shiftKey, event.ctrlKey, event.altKey, event.metaKey];
+    
+    switch (event.keyCode) {
+        case 38: //ArrowUp
+        case 39: //ArrowRight
+        case 40: //ArrowDown
+        case 37: //ArrowLeft
+        case 9:  //Tab
+        case 36: //Home
+        case 35: //End
+        case 33: //Page up
+        case 34: //Page down
+            advanceFocus(event.keyCode, modifiers);
+            break;
+        case 32: //Space
+        case 13: //Enter
+            processInput(event.target);
+            break;
+        case 27: //Esc
+        case 8:  //Backspace
+            if (isModalDisplayed) {
+                closeModal(activeModalElement.id, false);
+            }
+            break;
+        default:
+            /*Anything else can be handled as typing.*/
+            break;
+    }
+}
+
+function keyUp(event) {
+    event.preventDefault();
+    //TODO: This isn't fool-proof. Clicking away or alt-tabbing causes held keys to stick.
+    //Preventing double input is worth an extra keypress if the user encounters this edge case.
+    if (keysWeCareAbout.includes(event.keyCode) && heldKeyboardKeys.includes(event.keyCode)) {
+        heldKeyboardKeys.splice(heldKeyboardKeys.indexOf(event.keyCode), 1);
+    }
+}
+
+let inviolateElementsForceBack = ['screenReaderOnly'];
+
+function hoverIn(event) {
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    if (heldKeyboardKeys.length != 0) { return; }
+    if (navigableElements.includes(event.target)) {
+        currentlyFocusedElement = event.target;
+        return;
+    }
+    //User somehow goes off the page.
+    if (inviolateElementsForceBack.includes(event.target.id)) {
+        setFocus(navigableElements[navigableElements.length - 1], false);
+        return;
+    }
+}
+
+function processInput(activatedElement) {
+    //You can operate on specific element IDs
+    switch (activatedElement.id) {
+        case "btnTestAModalWindow":
+            modalPreviousFocus = document.getElementById('btnTestAModalWindow');
+            openModal('aModalWindow', 'aModalWindowMessage');
+            return;
+        case "modalAModalWindowClose":
+            closeModal('aModalWindow');
+            return;
+        case "btnTestRefreshAriaLabels":
+            refreshAriaLabels();
+            announce('Aria labels have been refreshed.');
+            return;
+        case "btnTestAnnouncement":
+            announce('This is a test of the emergency announcement system.');
+            return;
+        default:
+            setFocus(activatedElement);
+            break;
+    }
+    //Or on a class of objects
+    if (activatedElement.classList.contains("someCommonClass")) {
+        //Do something
+        return;
+    }
+}
+
+function advanceFocus(keyCode, modifiers = [0,0,0,0]) { //shift, ctrl, alt, meta
+    let currentNavigableElements;
+    if (isModalDisplayed) {
+        currentNavigableElements = modalNavigableElements;
+    } else {
+        currentNavigableElements = navigableElements;
+    }
+
+    let currentlyFocusedElementIndex = currentNavigableElements.indexOf(currentlyFocusedElement); //unmoved
+    let nextElemIndex = currentlyFocusedElementIndex; //unmoved
+    let nextElem = currentlyFocusedElement; //unmoved
+
+    switch (keyCode) {
+        //You can wrap copy this into conditional statements to handle different sections of your game.
+        //Do simple math operations on the index of your current selection to get where you need to be.
+        case 37: //ArrowLeft
+        case 38: //ArrowUp
+            if (modifiers[0]) { //with shift key
+                nextElemIndex = 0; //Go to top
+            } else {
+                if (currentlyFocusedElementIndex != 0) {
+                    nextElemIndex = currentlyFocusedElementIndex - 1;
+                }
+            }
+            break;
+        case 39: //ArrowRight
+        case 40: //ArrowDown
+            if (modifiers[0]) { //with shift key
+                nextElemIndex = currentNavigableElements.length - 1; //go to bottom
+            } else {
+                if (currentlyFocusedElementIndex != currentNavigableElements.length - 1) {
+                    nextElemIndex = currentlyFocusedElementIndex + 1;
+                }
+            }
+            break;
+        case 36: //Home
+        case 33: //Page up
+            nextElemIndex = 0; //Go to top
+            break;
+        case 35: //End
+        case 34: //Page down
+            nextElemIndex = currentNavigableElements.length - 1; //go to bottom
+            break;
+        default:
+            break;
+    }
+    
+    nextElem = currentNavigableElements[nextElemIndex];
+    setFocus(nextElem);
+}
+
+document.body.onresize = scaleGameContainer;
+
+function scaleGameContainer()
+{
+    let authoredWidth = 1080.0; //dimensions of #gameContainer
+    let authoredHeight = 1728.0; //dimensions of #gameContainer
+    //Stay a little away from the sides of curved screens.
+    let maxSize = 0.95;
+    let w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+    let h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+    let screenScale = Math.min(w / authoredWidth, h / authoredHeight);
+    let gameContainer = document.getElementById('gameContainer');
+    if (gameContainer != null) {
+        gameContainer.style.transform = 'scale(' + (screenScale * maxSize) + ')';
+    }
+}
+
+//Scale the scene on first load
+scaleGameContainer();
+
+//Set initial focus
+setFocus(document.getElementById('test1'));
+</script>
+
+</body>
+</html>
