@@ -430,6 +430,73 @@ function scaleGameContainer()
         gameContainer.style.transform = 'scale(' + (screenScale * maxSize) + ')';
     }
 }
+    
+// WebAudio implementation
+
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+// COMPAT: Safari on iOS does not automatically assign AudioContext to expected standard variables.
+this.audioContext = new AudioContext();
+let audioCompatMode;
+let audioPan;
+// StereoPanner is preferred. However, there is a fallback.
+if (audioContext.createStereoPanner) {
+	audioCompatMode = 'new';
+	audioPan = audioContext.createStereoPanner();
+} else {
+	audioCompatMode = 'old';
+	audioPan = audioContext.createPanner();
+	audioPan.panningModel = 'HRTF';
+	audioPan.coneInnerAngle = 360;
+	audioPan.coneOuterAngle = 0;
+	audioPan.coneOuterGain = 0;
+	audioPan.channelInterpretation = 'speakers';
+	audioPan.distanceModel = 'inverse';
+	audioPan.refDistance = 1;
+	audioPan.maxDistance = 1;
+	audioPan.rolloffFactor = 0;
+}
+audioPan.connect(audioContext.destination);
+
+function playAudio(fileName, startTime = 0, volume = 1) {
+	if (audioContext.state === 'suspended') {
+		audioContext.resume();
+	}
+
+	const sourceNode = audioContext.createBufferSource();
+	sourceNode.buffer = audioBuffers[fileName];
+
+	const gainNode = audioContext.createGain();
+	gainNode.gain.value = volume;
+
+	sourceNode.connect(gainNode);
+	gainNode.connect(audioContext.destination);
+
+	sourceNode.start(0, startTime);
+
+	return sourceNode;
+}
+
+const audioBuffers = {};
+
+let sfxDir = "/";
+let fileType = '.mp3';
+
+const sfxFiles = [
+	"mp3_file_name_without_extension",
+	"and another"
+]
+
+async function preloadAudio(array, dir, fileType) {
+	console.log('preload');
+	for (const audioFile of array) {
+		const response = await fetch(dir + audioFile + fileType);
+		const arrayBuffer = await response.arrayBuffer();
+		const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+		audioBuffers[audioFile] = audioBuffer;
+	}
+}
+
+preloadAudio(sfxFiles, sfxDir, fileType);
 
 //Scale the scene on first load
 scaleGameContainer();
