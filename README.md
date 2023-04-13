@@ -6,6 +6,7 @@ Note that the repo owner (Night Blade) is not affiliated with Themis Games in an
 
 # Usage
 
-Use the `index.html` file a a starting point; feel free to extract the CSS and JS into separate files if you prefer that.
-
-Note that the accessibility code has a `setupAudio()` method which needs to be called on the first user gesture (in Chrome); as part of their security fixes, this is no longer allowed to be called outside of user gestures.
+- Use the `index.html` file a a starting point. If you wish, you can extract the CSS and JS into separate files
+- Make sure you include the Javascript code in the `<body>` tag, because it needs to access the DOM.
+- Update `sfxFiles` to list any sound files you want to preload. 
+- Call `setupAudio()` on the first user gesture. This is a security feature (in Chrome), where this is no longer allowed to be called outside of user gestures. This also causes the audio files to preload.
