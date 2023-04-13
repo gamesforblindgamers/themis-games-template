@@ -439,25 +439,28 @@ const AudioContext = window.AudioContext || window.webkitAudioContext;
 this.audioContext = new AudioContext();
 let audioCompatMode;
 let audioPan;
-// StereoPanner is preferred. However, there is a fallback.
-if (audioContext.createStereoPanner) {
-	audioCompatMode = 'new';
-	audioPan = audioContext.createStereoPanner();
-} else {
-	audioCompatMode = 'old';
-	audioPan = audioContext.createPanner();
-	audioPan.panningModel = 'HRTF';
-	audioPan.coneInnerAngle = 360;
-	audioPan.coneOuterAngle = 0;
-	audioPan.coneOuterGain = 0;
-	audioPan.channelInterpretation = 'speakers';
-	audioPan.distanceModel = 'inverse';
-	audioPan.refDistance = 1;
-	audioPan.maxDistance = 1;
-	audioPan.rolloffFactor = 0;
+	
+function setupAudio() {
+	// StereoPanner is preferred. However, there is a fallback.
+	if (audioContext.createStereoPanner) {
+		audioCompatMode = 'new';
+		audioPan = audioContext.createStereoPanner();
+	} else {
+		audioCompatMode = 'old';
+		audioPan = audioContext.createPanner();
+		audioPan.panningModel = 'HRTF';
+		audioPan.coneInnerAngle = 360;
+		audioPan.coneOuterAngle = 0;
+		audioPan.coneOuterGain = 0;
+		audioPan.channelInterpretation = 'speakers';
+		audioPan.distanceModel = 'inverse';
+		audioPan.refDistance = 1;
+		audioPan.maxDistance = 1;
+		audioPan.rolloffFactor = 0;
+	}
+	audioPan.connect(audioContext.destination);
 }
-audioPan.connect(audioContext.destination);
-
+	
 function playAudio(fileName, startTime = 0, volume = 1) {
 	if (audioContext.state === 'suspended') {
 		audioContext.resume();
