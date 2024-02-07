@@ -6,6 +6,9 @@ Blind-accessible HTML/Javascript game template, originally developed and maintai
 
 - [Wordvoyance](https://www.themisgames.com/wordvoyance/)
 
+# License
+Creative Commons 0 (CC0)
+
 # Usage
 
 - Use the `index.html` file a a starting point. If you wish, you can extract the CSS and JS into separate files
